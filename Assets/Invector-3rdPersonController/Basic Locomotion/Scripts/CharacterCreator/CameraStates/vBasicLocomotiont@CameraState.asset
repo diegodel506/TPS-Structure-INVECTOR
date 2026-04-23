@@ -176,3 +176,49 @@ MonoBehaviour:
       eulerAngle: {x: 2.0625482, y: 271.75256, z: -0.00016467154}
       freeRotation: 0
     cameraMode: 2
+  - Name: AimRightShoulder
+    forward: -1
+    right: 0.51
+    defaultDistance: 1.2
+    maxDistance: 3
+    minDistance: 0.5
+    height: 1.62
+    smooth: 10
+    smoothDamp: 0
+    xMouseSensitivity: 3
+    yMouseSensitivity: 3
+    yMinLimit: -40
+    yMaxLimit: 80
+    xMinLimit: -360
+    xMaxLimit: 360
+    rotationOffSet: {x: 0, y: 0, z: 0}
+    cullingHeight: 0.2
+    cullingMinDist: 0.1
+    fov: 44.8
+    useZoom: 0
+    fixedAngle: {x: 0, y: 0}
+    lookPoints: []
+    cameraMode: 0
+  - Name: AimRightShoulderCrouch
+    forward: -1
+    right: 0.51
+    defaultDistance: 1.2
+    maxDistance: 3
+    minDistance: 0.5
+    height: 1
+    smooth: 10
+    smoothDamp: 0
+    xMouseSensitivity: 3
+    yMouseSensitivity: 3
+    yMinLimit: -40
+    yMaxLimit: 80
+    xMinLimit: -360
+    xMaxLimit: 360
+    rotationOffSet: {x: 0, y: 0, z: 0}
+    cullingHeight: 0.2
+    cullingMinDist: 0.1
+    fov: 44.8
+    useZoom: 0
+    fixedAngle: {x: 0, y: 0}
+    lookPoints: []
+    cameraMode: 0

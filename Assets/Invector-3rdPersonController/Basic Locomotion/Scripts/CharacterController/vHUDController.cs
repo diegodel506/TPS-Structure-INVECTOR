@@ -73,8 +73,8 @@ namespace Invector.vCharacterController
         public void Init(vThirdPersonController cc)
         {
             cc.onDead.AddListener(OnDead);
-            cc.onReceiveDamage.AddListener(EnableDamageSprite);
-            damageImage.color = new Color(0f, 0f, 0f, 0f);
+            //cc.onReceiveDamage.AddListener(EnableDamageSprite);
+            //damageImage.color = new Color(0f, 0f, 0f, 0f);
             if (healthSlider)
             {
                 if (cc.maxHealth != healthSlider.maxValue)

@@ -441,7 +441,7 @@ namespace Invector.vCharacterController
             MoveInput();
             SprintInput();
             CrouchInput();
-            StrafeInput();
+            //StrafeInput();
             JumpInput();
             RollInput();
         }
