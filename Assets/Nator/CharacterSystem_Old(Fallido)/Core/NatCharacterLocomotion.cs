@@ -1,6 +1,7 @@
 using UnityEngine;
 using Nator.CharacterSystem.Input;
 using Nator.CharacterSystem.Animation;
+using Nator.CharacterSystem.Motor;
 
 namespace Nator.CharacterSystem.Core
 {
@@ -11,25 +12,21 @@ namespace Nator.CharacterSystem.Core
         [SerializeField] private NatCharacterInput characterInput;
         [SerializeField] private NatLocomotionStateMachine stateMachine;
         [SerializeField] private NatAnimatorBridge animatorBridge;
+        [SerializeField] private NatCharacterMotor characterMotor;
         [SerializeField] private Transform cameraReference;
 
         [Header("Animator Settings")]
         [SerializeField] private float moveSetId = 0f;
         [SerializeField] private bool autoFindMainCamera = true;
 
-        [Header("Debug / Runtime")]
+        [Header("Runtime Debug")]
         [SerializeField] private Vector3 desiredMoveDirection;
         [SerializeField] private Vector3 desiredFacingDirection;
         [SerializeField] private float inputMagnitude;
         [SerializeField] private float inputDirection;
         [SerializeField] private float rotationMagnitude;
-        [SerializeField] private bool isGrounded = true;
-        [SerializeField] private bool isSliding = false;
-        [SerializeField] private bool isDead = false;
-        [SerializeField] private float groundDistance = 0f;
-        [SerializeField] private float groundAngle = 0f;
-        [SerializeField] private float verticalVelocity = 0f;
         [SerializeField] private int currentActionState = 0;
+        [SerializeField] private bool jumpBuffered;
 
         [Header("Idle Random")]
         [SerializeField] private bool enableRandomIdle = true;
@@ -49,36 +46,6 @@ namespace Nator.CharacterSystem.Core
         public float InputMagnitude => inputMagnitude;
         public float RotationMagnitude => rotationMagnitude;
 
-        public bool IsGrounded => isGrounded;
-        public bool IsSliding => isSliding;
-        public bool IsDead => isDead;
-
-        public void SetPhysicalDebugState(
-            bool grounded,
-            bool sliding,
-            bool dead,
-            float groundDistanceValue,
-            float groundAngleValue,
-            float verticalVelocityValue)
-        {
-            isGrounded = grounded;
-            isSliding = sliding;
-            isDead = dead;
-            groundDistance = groundDistanceValue;
-            groundAngle = groundAngleValue;
-            verticalVelocity = verticalVelocityValue;
-        }
-
-        public void SetActionState(int value)
-        {
-            currentActionState = value;
-        }
-
-        public void SetMoveSetId(float value)
-        {
-            moveSetId = value;
-        }
-
         private void Reset()
         {
             if (!characterInput)
@@ -89,6 +56,9 @@ namespace Nator.CharacterSystem.Core
 
             if (!animatorBridge)
                 animatorBridge = GetComponent<NatAnimatorBridge>();
+
+            if (!characterMotor)
+                characterMotor = GetComponent<NatCharacterMotor>();
         }
 
         private void Awake()
@@ -102,6 +72,9 @@ namespace Nator.CharacterSystem.Core
             if (!animatorBridge)
                 animatorBridge = GetComponent<NatAnimatorBridge>();
 
+            if (!characterMotor)
+                characterMotor = GetComponent<NatCharacterMotor>();
+
             if (!cameraReference && autoFindMainCamera && Camera.main)
                 cameraReference = Camera.main.transform;
 
@@ -113,7 +86,7 @@ namespace Nator.CharacterSystem.Core
 
         private void Update()
         {
-            if (characterInput == null || stateMachine == null || animatorBridge == null)
+            if (characterInput == null || stateMachine == null || animatorBridge == null || characterMotor == null)
                 return;
 
             if (!cameraReference && autoFindMainCamera && Camera.main)
@@ -121,25 +94,29 @@ namespace Nator.CharacterSystem.Core
 
             characterInput.ReadInput();
 
+            if (characterInput.JumpPressed)
+                jumpBuffered = true;
+
             UpdateDesiredDirections();
             UpdateInputMetrics();
-            UpdateIdleRandom();
 
             stateMachine.SetInputs(
                 characterInput.StrafeActive,
                 characterInput.CrouchActive,
                 characterInput.SprintHeld,
                 characterInput.RollPressed,
-                characterInput.JumpPressed);
+                jumpBuffered);
 
             stateMachine.SetPhysicalState(
-                isGrounded,
-                isSliding,
-                isDead);
+                characterMotor.IsGrounded,
+                characterMotor.IsSliding,
+                false);
 
             stateMachine.Evaluate(animatorBridge);
 
+            UpdateIdleRandom();
             BuildAnimatorFrameData(Time.deltaTime);
+
             animatorBridge.ApplyFrameData(frameData, Time.deltaTime);
             animatorBridge.RefreshStateInfo();
 
@@ -148,10 +125,36 @@ namespace Nator.CharacterSystem.Core
 
         private void FixedUpdate()
         {
-            if (animatorBridge == null || stateMachine == null)
+            if (characterMotor == null || stateMachine == null || animatorBridge == null || characterInput == null)
                 return;
 
+            characterMotor.SetDesiredMotion(desiredMoveDirection, desiredFacingDirection);
+            characterMotor.SetIgnoreGroundSnap(stateMachine.IgnoreGroundSnap);
+
+            if (stateMachine.UseRootMotion)
+            {
+                characterMotor.SetRootMotionDelta(
+                    animatorBridge.DeltaPosition,
+                    animatorBridge.DeltaRotation);
+            }
+
+            if (jumpBuffered)
+            {
+                characterMotor.RequestJump();
+                jumpBuffered = false;
+            }
+
+            characterMotor.TickMotor(
+                stateMachine.CanMove,
+                stateMachine.CanRotate,
+                characterInput.SprintHeld,
+                characterInput.CrouchActive,
+                characterInput.StrafeActive,
+                stateMachine.UseRootMotion,
+                Time.fixedDeltaTime);
+
             animatorBridge.RefreshStateInfo();
+            animatorBridge.ClearRootMotionCache();
         }
 
         private void OnAnimatorMove()
@@ -178,16 +181,22 @@ namespace Nator.CharacterSystem.Core
             forward.y = 0f;
             right.y = 0f;
 
-            forward.Normalize();
-            right.Normalize();
+            if (forward.sqrMagnitude > 0.0001f)
+                forward.Normalize();
+
+            if (right.sqrMagnitude > 0.0001f)
+                right.Normalize();
 
             desiredMoveDirection = (forward * moveInput.y + right * moveInput.x);
+
             if (desiredMoveDirection.sqrMagnitude > 1f)
                 desiredMoveDirection.Normalize();
 
             if (stateMachine.LocomotionMode == NatLocomotionMode.Strafe)
             {
-                desiredFacingDirection = forward.sqrMagnitude > 0f ? forward : transform.forward;
+                desiredFacingDirection = forward.sqrMagnitude > 0.0001f
+                    ? forward
+                    : transform.forward;
             }
             else
             {
@@ -200,7 +209,6 @@ namespace Nator.CharacterSystem.Core
         private void UpdateInputMetrics()
         {
             Vector2 moveInput = characterInput.Move;
-
             inputMagnitude = Mathf.Clamp01(moveInput.magnitude);
 
             Vector3 localMove = transform.InverseTransformDirection(desiredMoveDirection);
@@ -211,11 +219,15 @@ namespace Nator.CharacterSystem.Core
 
             Vector3 currentForward = transform.forward;
             currentForward.y = 0f;
-            currentForward.Normalize();
 
             Vector3 previousForward = lastForward;
             previousForward.y = 0f;
-            previousForward.Normalize();
+
+            if (currentForward.sqrMagnitude > 0.0001f)
+                currentForward.Normalize();
+
+            if (previousForward.sqrMagnitude > 0.0001f)
+                previousForward.Normalize();
 
             if (currentForward.sqrMagnitude < 0.0001f || previousForward.sqrMagnitude < 0.0001f)
             {
@@ -239,7 +251,7 @@ namespace Nator.CharacterSystem.Core
 
             bool isIdleEnough =
                 inputMagnitude < 0.05f &&
-                isGrounded &&
+                characterMotor.IsGrounded &&
                 !stateMachine.IsSliding &&
                 !stateMachine.IsRolling &&
                 !stateMachine.IsDead &&
@@ -268,26 +280,28 @@ namespace Nator.CharacterSystem.Core
             float inputHorizontal = Mathf.Clamp(localMove.x, -1f, 1f);
             float inputVertical = Mathf.Clamp(localMove.z, -1f, 1f);
 
+            float animatorMagnitude = CalculateAnimatorInputMagnitude();
+
             frameData = new NatAnimatorFrameData
             {
                 InputHorizontal = inputHorizontal,
                 InputVertical = inputVertical,
                 InputDirection = inputDirection,
-                InputMagnitude = inputMagnitude,
+                InputMagnitude = animatorMagnitude,
                 RotationMagnitude = rotationMagnitude,
 
                 ActionState = currentActionState,
 
                 IsDead = stateMachine.IsDead,
-                IsGrounded = isGrounded,
+                IsGrounded = characterMotor.IsGrounded,
                 IsCrouching = stateMachine.Stance == NatStance.Crouching,
                 IsStrafing = stateMachine.LocomotionMode == NatLocomotionMode.Strafe,
                 IsSprinting = stateMachine.IsSprinting,
-                IsSliding = isSliding,
+                IsSliding = characterMotor.IsSliding,
 
-                GroundDistance = groundDistance,
-                GroundAngle = groundAngle,
-                VerticalVelocity = verticalVelocity,
+                GroundDistance = characterMotor.GroundDistance,
+                GroundAngle = characterMotor.GroundAngle,
+                VerticalVelocity = characterMotor.VerticalVelocity,
 
                 MoveSetId = moveSetId,
                 IdleRandom = idleRandomValue,
@@ -295,6 +309,35 @@ namespace Nator.CharacterSystem.Core
                 TriggerIdleRandom = triggerIdleRandom,
                 TriggerResetState = false
             };
+        }
+
+        private float CalculateAnimatorInputMagnitude()
+        {
+            if (inputMagnitude < 0.05f)
+                return 0f;
+
+            bool isCrouching = stateMachine.Stance == NatStance.Crouching;
+            bool isSprinting = stateMachine.IsSprinting;
+
+            // Para respetar el Animator de Invector:
+            // 0.0 = idle
+            // 0.5 = walk
+            // 1.0 = run
+            // 1.5 = sprint
+
+            if (isCrouching)
+            {
+                return Mathf.Lerp(0f, 0.5f, inputMagnitude);
+            }
+
+            if (isSprinting)
+            {
+                return Mathf.Lerp(0f, 1.5f, inputMagnitude);
+            }
+
+            // Por ahora dejamos locomoción normal en "walk"
+            // Si luego agregamos toggle walk/run real, aquí decidimos entre 0.5 y 1.0
+            return Mathf.Lerp(0f, 0.5f, inputMagnitude);
         }
     }
 }
