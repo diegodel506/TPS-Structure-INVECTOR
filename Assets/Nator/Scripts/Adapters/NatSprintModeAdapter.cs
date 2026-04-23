@@ -1,6 +1,10 @@
 using UnityEngine;
 using Invector.vCharacterController;
 
+// IMPORTANTE:
+// El crouch debe conservar el comportamiento original de Invector.
+// El modo walk-by-default solo se aplica a locomoción normal de pie.
+
 namespace Nator.Adapters
 {
     [DisallowMultipleComponent]
@@ -13,15 +17,13 @@ namespace Nator.Adapters
 
         [Header("Behavior")]
         [SerializeField] private bool enableAdapter = true;
-        [SerializeField] private bool returnToWalkWhenShiftReleased = true;
         [SerializeField] private bool forceWalkByDefaultOnStart = true;
+        [SerializeField] private bool uncrouchWhenSprintPressed = true;
 
         [Header("Debug")]
         [SerializeField] private bool shiftHeld;
-        [SerializeField] private bool staminaForcedRun;
-        [SerializeField] private bool walkModeActive = true;
-
-        private bool eventsHooked;
+        [SerializeField] private bool isAiming;
+        [SerializeField] private bool usingWalkDefault = true;
 
         private void Reset()
         {
@@ -47,11 +49,6 @@ namespace Nator.Adapters
                 aimAdapter = GetComponent<NatAimModeAdapter>();
         }
 
-        private void OnEnable()
-        {
-            HookEvents();
-        }
-
         private void Start()
         {
             if (!enableAdapter || controller == null)
@@ -60,14 +57,8 @@ namespace Nator.Adapters
             if (forceWalkByDefaultOnStart)
             {
                 controller.alwaysWalkByDefault = true;
-                walkModeActive = true;
-                staminaForcedRun = false;
+                usingWalkDefault = true;
             }
-        }
-
-        private void OnDisable()
-        {
-            UnhookEvents();
         }
 
         private void Update()
@@ -76,6 +67,7 @@ namespace Nator.Adapters
                 return;
 
             shiftHeld = input.sprintInput.GetButton();
+            isAiming = aimAdapter != null && aimAdapter.IsAiming;
         }
 
         private void LateUpdate()
@@ -83,105 +75,46 @@ namespace Nator.Adapters
             if (!enableAdapter || controller == null)
                 return;
 
-            ApplyMode();
+            ApplySprintMode();
         }
 
-        private void ApplyMode()
+        private void ApplySprintMode()
         {
-            bool isAiming = aimAdapter != null && aimAdapter.IsAiming;
-
+            // En Aim no tocamos nada
             if (isAiming)
+                return;
+
+            // Si está en crouch y NO está intentando correr,
+            // dejamos el comportamiento original de Invector intacto.
+            if (controller.isCrouching && !shiftHeld)
             {
-                // AIM MODE
-                controller.alwaysWalkByDefault = true;
-
-                if (shiftHeld)
-                {
-                    // SHIFT = RUN (no sprint)
-                    controller.isSprinting = false;
-                    controller.alwaysWalkByDefault = false;
-                }
-                else
-                {
-                    // default = WALK
-                    controller.isSprinting = false;
-                    controller.alwaysWalkByDefault = true;
-                }
-
-                walkModeActive = true;
+                controller.alwaysWalkByDefault = false;
+                usingWalkDefault = false;
                 return;
             }
 
-            // NORMAL MODE (tu lógica original)
             if (shiftHeld)
             {
+                // Si quiere correr/sprintar y está en crouch, salir del crouch
+                if (uncrouchWhenSprintPressed && controller.isCrouching)
+                {
+                    controller.isCrouching = false;
+
+                }
+
+                // Solo en locomoción normal de pie:
+                // quitamos walk por defecto para permitir sprint / run
                 controller.alwaysWalkByDefault = false;
-                controller.isSprinting = true;
-                walkModeActive = false;
+                usingWalkDefault = false;
             }
             else
             {
-                if (returnToWalkWhenShiftReleased)
+                // Solo volvemos a walk default si NO está en crouch
+                if (!controller.isCrouching)
                 {
                     controller.alwaysWalkByDefault = true;
-                    controller.isSprinting = false;
-                    staminaForcedRun = false;
-                    walkModeActive = true;
+                    usingWalkDefault = true;
                 }
-            }
-        }
-
-        private void HookEvents()
-        {
-            if (eventsHooked || controller == null)
-                return;
-
-            if (controller.OnStaminaEnd != null)
-                controller.OnStaminaEnd.AddListener(HandleStaminaEnd);
-
-            if (controller.OnFinishSprintingByStamina != null)
-                controller.OnFinishSprintingByStamina.AddListener(HandleFinishSprintByStamina);
-
-            eventsHooked = true;
-        }
-
-        private void UnhookEvents()
-        {
-            if (!eventsHooked || controller == null)
-                return;
-
-            if (controller.OnStaminaEnd != null)
-                controller.OnStaminaEnd.RemoveListener(HandleStaminaEnd);
-
-            if (controller.OnFinishSprintingByStamina != null)
-                controller.OnFinishSprintingByStamina.RemoveListener(HandleFinishSprintByStamina);
-
-            eventsHooked = false;
-        }
-
-        private void HandleStaminaEnd()
-        {
-            if (!enableAdapter || controller == null)
-                return;
-
-            if (shiftHeld)
-            {
-                controller.alwaysWalkByDefault = false;
-                staminaForcedRun = true;
-                walkModeActive = false;
-            }
-        }
-
-        private void HandleFinishSprintByStamina()
-        {
-            if (!enableAdapter || controller == null)
-                return;
-
-            if (shiftHeld)
-            {
-                controller.alwaysWalkByDefault = false;
-                staminaForcedRun = true;
-                walkModeActive = false;
             }
         }
     }

@@ -13,13 +13,13 @@ namespace Nator.Adapters
         [Header("Input")]
         [SerializeField] private KeyCode aimKey = KeyCode.Mouse1;
 
-        [Header("Camera")]
+        [Header("Camera States")]
         [SerializeField] private string aimCameraState = "AimRightShoulder";
         [SerializeField] private string crouchAimState = "AimRightShoulderCrouch";
         [SerializeField] private bool smoothCameraTransition = true;
         [SerializeField] private bool useCrouchCamera = true;
 
-        [Header("Behavior")]
+        [Header("Aim Behavior")]
         [SerializeField] private bool forceStrafeWhileAiming = true;
         [SerializeField] private bool blockSprintWhileAiming = true;
         [SerializeField] private bool lockCameraToAimStateOnlyWhileHeld = true;
@@ -34,11 +34,17 @@ namespace Nator.Adapters
         [SerializeField] private bool allowShoulderSwap = true;
         [SerializeField] private KeyCode swapKey = KeyCode.Q;
         [SerializeField] private bool rightShoulder = true;
-        [SerializeField] private float shoulderSwapSpeed = 10f;
+        [SerializeField] private bool keepLastShoulderWhenExitAim = true;
+        [SerializeField] private float shoulderSmoothTime = 0.08f;
+        [SerializeField] private float shoulderMaxSpeed = 100f;
+        [SerializeField] private float defaultShoulderValue = 1f;
 
         [Header("Debug")]
         [SerializeField] private bool isAiming;
+        [SerializeField] private float currentShoulderValue;
+        [SerializeField] private float targetShoulderValue;
 
+        private float shoulderVelocity;
         private bool originalJumpAndRotate;
         private bool cachedOriginalJumpAndRotate;
 
@@ -69,6 +75,20 @@ namespace Nator.Adapters
                 originalJumpAndRotate = controller.jumpAndRotate;
                 cachedOriginalJumpAndRotate = true;
             }
+
+            if (input != null && input.tpCamera != null)
+            {
+                currentShoulderValue = input.tpCamera.switchRight;
+                if (Mathf.Approximately(currentShoulderValue, 0f))
+                    currentShoulderValue = defaultShoulderValue;
+
+                targetShoulderValue = currentShoulderValue;
+            }
+            else
+            {
+                currentShoulderValue = defaultShoulderValue;
+                targetShoulderValue = defaultShoulderValue;
+            }
         }
 
         private void Update()
@@ -88,8 +108,8 @@ namespace Nator.Adapters
                 return;
 
             ApplyAimMode();
-            ApplyShoulderSwap();
             ApplyAimRotation();
+            ApplyShoulderSwap();
         }
 
         private void ApplyAimMode()
@@ -125,25 +145,12 @@ namespace Nator.Adapters
                 if (lockCameraToAimStateOnlyWhileHeld)
                 {
                     input.changeCameraState = false;
-                    input.customCameraState = "";
+                    input.customCameraState = string.Empty;
                 }
 
                 if (cachedOriginalJumpAndRotate)
                     controller.jumpAndRotate = originalJumpAndRotate;
             }
-        }
-
-        private void ApplyShoulderSwap()
-        {
-            if (!allowShoulderSwap)
-                return;
-
-            var cam = input.tpCamera;
-            if (cam == null)
-                return;
-
-            float target = rightShoulder ? 1f : -1f;
-            cam.switchRight = Mathf.MoveTowards(cam.switchRight, target, shoulderSwapSpeed * Time.deltaTime);
         }
 
         private void ApplyAimRotation()
@@ -167,6 +174,29 @@ namespace Nator.Adapters
 
             if (keepStrafeInAir)
                 controller.isStrafing = true;
+        }
+
+        private void ApplyShoulderSwap()
+        {
+            if (!allowShoulderSwap)
+                return;
+
+            if (input.tpCamera == null)
+                return;
+
+            if (isAiming)
+            {
+                targetShoulderValue = rightShoulder ? 1f : -1f;
+            }
+            else
+            {
+                if (!keepLastShoulderWhenExitAim)
+                    targetShoulderValue = defaultShoulderValue;
+                else
+                    targetShoulderValue = rightShoulder ? 1f : -1f;
+            }
+
+            input.tpCamera.switchRight = targetShoulderValue;
         }
     }
 }
