@@ -23,7 +23,7 @@ namespace Nator.Adapters
         [Header("Debug")]
         [SerializeField] private bool shiftHeld;
         [SerializeField] private bool isAiming;
-        [SerializeField] private bool usingWalkDefault = true;
+        //[SerializeField] private bool usingWalkDefault = true;
 
         private void Reset()
         {
@@ -57,7 +57,7 @@ namespace Nator.Adapters
             if (forceWalkByDefaultOnStart)
             {
                 controller.alwaysWalkByDefault = true;
-                usingWalkDefault = true;
+                //usingWalkDefault = true;
             }
         }
 
@@ -89,7 +89,7 @@ namespace Nator.Adapters
             if (controller.isCrouching && !shiftHeld)
             {
                 controller.alwaysWalkByDefault = false;
-                usingWalkDefault = false;
+                //usingWalkDefault = false;
                 return;
             }
 
@@ -105,7 +105,7 @@ namespace Nator.Adapters
                 // Solo en locomoción normal de pie:
                 // quitamos walk por defecto para permitir sprint / run
                 controller.alwaysWalkByDefault = false;
-                usingWalkDefault = false;
+                //usingWalkDefault = false;
             }
             else
             {
@@ -113,7 +113,7 @@ namespace Nator.Adapters
                 if (!controller.isCrouching)
                 {
                     controller.alwaysWalkByDefault = true;
-                    usingWalkDefault = true;
+                    //usingWalkDefault = true;
                 }
             }
         }

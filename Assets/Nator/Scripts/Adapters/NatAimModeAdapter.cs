@@ -35,8 +35,6 @@ namespace Nator.Adapters
         [SerializeField] private KeyCode swapKey = KeyCode.Q;
         [SerializeField] private bool rightShoulder = true;
         [SerializeField] private bool keepLastShoulderWhenExitAim = true;
-        [SerializeField] private float shoulderSmoothTime = 0.08f;
-        [SerializeField] private float shoulderMaxSpeed = 100f;
         [SerializeField] private float defaultShoulderValue = 1f;
 
         [Header("Debug")]
