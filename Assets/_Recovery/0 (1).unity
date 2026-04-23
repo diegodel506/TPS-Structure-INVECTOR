@@ -867,7 +867,7 @@ MonoBehaviour:
       m_Calls: []
   _maxStamina: 200
   _staminaRecovery: 1.2
-  _sprintStamina: 15
+  _sprintStamina: 5
   _jumpStamina: 10
   _rollStamina: 10
   OnExitGround:
