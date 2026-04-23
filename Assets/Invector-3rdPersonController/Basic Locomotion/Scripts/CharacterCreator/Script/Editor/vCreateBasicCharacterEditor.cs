@@ -21,6 +21,7 @@ namespace Invector.vCharacterController
         /// <summary>
         /// 3rdPersonController Menu 
         /// </summary>    
+        
         [MenuItem("Invector/Basic Locomotion/Create Basic Controller", false, 0)]
         public static void CreateNewCharacter()
         {

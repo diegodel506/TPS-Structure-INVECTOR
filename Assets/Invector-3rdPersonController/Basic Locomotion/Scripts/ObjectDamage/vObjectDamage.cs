@@ -190,12 +190,10 @@ namespace Invector
             damage.hitPosition = hitPoint;
             damage.receiver = target.transform;
             var d = new vDamage(damage);
-#if INVECTOR_MELEE || INVECTOR_SHOOTER
-            target.gameObject.ApplyDamage(d, null);
-#else
-            if(d.damageValue > 0)
+
+            if (d.damageValue > 0)
                 target.gameObject.ApplyDamage(d);
-#endif
+                
             onSendDamage.Invoke(d);
             onHit.Invoke(target);
         }
