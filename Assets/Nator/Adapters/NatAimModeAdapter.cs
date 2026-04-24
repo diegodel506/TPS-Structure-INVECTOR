@@ -4,14 +4,25 @@ using Invector.vCharacterController;
 namespace Nator.Adapters
 {
     [DisallowMultipleComponent]
+    [DefaultExecutionOrder(-10000)]
     public class NatAimModeAdapter : MonoBehaviour
     {
+        #region References
+
         [Header("References")]
         [SerializeField] private vThirdPersonController controller;
         [SerializeField] private vThirdPersonInput input;
 
+        #endregion
+
+        #region Input
+
         [Header("Input")]
         [SerializeField] private KeyCode aimKey = KeyCode.Mouse1;
+
+        #endregion
+
+        #region Camera States
 
         [Header("Camera States")]
         [SerializeField] private string aimCameraState = "AimRightShoulder";
@@ -19,16 +30,29 @@ namespace Nator.Adapters
         [SerializeField] private bool smoothCameraTransition = true;
         [SerializeField] private bool useCrouchCamera = true;
 
+        #endregion
+
+        #region Aim Behavior
+
         [Header("Aim Behavior")]
         [SerializeField] private bool forceStrafeWhileAiming = true;
         [SerializeField] private bool blockSprintWhileAiming = true;
+        [SerializeField] private bool blockRollWhileAiming = true;
         [SerializeField] private bool lockCameraToAimStateOnlyWhileHeld = true;
+
+        #endregion
+
+        #region Air Behavior
 
         [Header("Air Behavior")]
         [SerializeField] private bool keepStrafeInAir = true;
         [SerializeField] private bool rotateToCameraWhileAiming = true;
         [SerializeField] private bool forceJumpAndRotateWhileAiming = true;
         [SerializeField] private float aimRotationSpeed = 20f;
+
+        #endregion
+
+        #region Shoulder Swap
 
         [Header("Shoulder Swap")]
         [SerializeField] private bool allowShoulderSwap = true;
@@ -37,24 +61,40 @@ namespace Nator.Adapters
         [SerializeField] private bool keepLastShoulderWhenExitAim = true;
         [SerializeField] private float defaultShoulderValue = 1f;
 
+        #endregion
+
+        #region Debug
+
         [Header("Debug")]
         [SerializeField] private bool isAiming;
         [SerializeField] private float currentShoulderValue;
         [SerializeField] private float targetShoulderValue;
 
-        private float shoulderVelocity;
+        #endregion
+
+        #region Runtime Cache
+
         private bool originalJumpAndRotate;
         private bool cachedOriginalJumpAndRotate;
 
+        private GenericInput originalRollInput;
+        private GenericInput blockedRollInput;
+        private bool isRollInputBlocked;
+
+        #endregion
+
+        #region Properties
+
         public bool IsAiming => isAiming;
+
+        #endregion
+
+        #region Unity
 
         private void Reset()
         {
-            if (!controller)
-                controller = GetComponent<vThirdPersonController>();
-
-            if (!input)
-                input = GetComponent<vThirdPersonInput>();
+            controller = GetComponent<vThirdPersonController>();
+            input = GetComponent<vThirdPersonInput>();
         }
 
         private void Awake()
@@ -64,6 +104,8 @@ namespace Nator.Adapters
 
             if (!input)
                 input = GetComponent<vThirdPersonInput>();
+
+            CacheRollInput();
         }
 
         private void Start()
@@ -77,6 +119,7 @@ namespace Nator.Adapters
             if (input != null && input.tpCamera != null)
             {
                 currentShoulderValue = input.tpCamera.switchRight;
+
                 if (Mathf.Approximately(currentShoulderValue, 0f))
                     currentShoulderValue = defaultShoulderValue;
 
@@ -98,6 +141,8 @@ namespace Nator.Adapters
                 rightShoulder = !rightShoulder;
 
             isAiming = Input.GetKey(aimKey);
+
+            ApplyRollBlock();
         }
 
         private void LateUpdate()
@@ -110,15 +155,39 @@ namespace Nator.Adapters
             ApplyShoulderSwap();
         }
 
+        private void OnDisable()
+        {
+            RestoreRollInput();
+
+            if (cachedOriginalJumpAndRotate && controller != null)
+                controller.jumpAndRotate = originalJumpAndRotate;
+        }
+
+        private void OnDestroy()
+        {
+            RestoreRollInput();
+        }
+
+        #endregion
+
+        #region Aim Mode
+
         private void ApplyAimMode()
         {
             if (isAiming)
             {
+                bool shiftHeld = input.sprintInput.GetButton();
+
                 if (forceStrafeWhileAiming)
                     controller.isStrafing = true;
 
+                // Bloquea Sprint real, pero permite pasar de Walk a Run con Shift
                 if (blockSprintWhileAiming)
                     controller.isSprinting = false;
+
+                // Sin Shift: Walk
+                // Con Shift: Run
+                controller.alwaysWalkByDefault = !shiftHeld;
 
                 if (forceJumpAndRotateWhileAiming)
                     controller.jumpAndRotate = true;
@@ -174,6 +243,10 @@ namespace Nator.Adapters
                 controller.isStrafing = true;
         }
 
+        #endregion
+
+        #region Shoulder Swap
+
         private void ApplyShoulderSwap()
         {
             if (!allowShoulderSwap)
@@ -196,5 +269,65 @@ namespace Nator.Adapters
 
             input.tpCamera.switchRight = targetShoulderValue;
         }
+
+        #endregion
+
+        #region Roll Block
+
+        private void CacheRollInput()
+        {
+            if (input == null)
+                return;
+
+            originalRollInput = input.rollInput;
+
+            blockedRollInput = new GenericInput("", "", "");
+            blockedRollInput.useInput = false;
+        }
+
+        private void ApplyRollBlock()
+        {
+            if (!blockRollWhileAiming)
+            {
+                RestoreRollInput();
+                return;
+            }
+
+            if (isAiming)
+                BlockRollInput();
+            else
+                RestoreRollInput();
+        }
+
+        private void BlockRollInput()
+        {
+            if (input == null)
+                return;
+
+            if (isRollInputBlocked)
+                return;
+
+            if (originalRollInput == null)
+                originalRollInput = input.rollInput;
+
+            input.rollInput = blockedRollInput;
+            isRollInputBlocked = true;
+        }
+
+        private void RestoreRollInput()
+        {
+            if (input == null)
+                return;
+
+            if (!isRollInputBlocked)
+                return;
+
+            if (originalRollInput != null)
+                input.rollInput = originalRollInput;
+
+            isRollInputBlocked = false;
+        }
+
+        #endregion
     }
 }

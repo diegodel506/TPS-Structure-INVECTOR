@@ -26,10 +26,10 @@ public class EnableIfAttribute : PropertyAttribute
     }
 }
 
-namespace JUTPS
+namespace Nator.FootIK
 {
-    [AddComponentMenu("JU Foot Placement/JU Foot Placement")]
-    public class JUFootPlacement : MonoBehaviour
+    [AddComponentMenu("NatorTools/Foot IK/Nat Foot Placement")]
+    public class NatFootPlacement : MonoBehaviour
     {
         #region Runtime State
 
@@ -802,9 +802,9 @@ public class EnableIfAttributeDrawer : PropertyDrawer
 #if UNITY_EDITOR
 namespace CustomEditors
 {
-    [CustomEditor(typeof(JUTPS.JUFootPlacement), true)]
+    [CustomEditor(typeof(Nator.FootIK.NatFootPlacement), true)]
     [CanEditMultipleObjects]
-    public class JUFPPROEditor : Editor
+    public class NatFootPlacementEditor : Editor
     {
         private static readonly string[] DontInclude = new string[] { "m_Script" };
 
@@ -812,7 +812,7 @@ namespace CustomEditors
         {
             serializedObject.Update();
 
-            DrawTitle("JU Foot Placement");
+            DrawTitle("Nat Foot Placement");
 
             DrawPropertiesExcluding(serializedObject, DontInclude);
 
